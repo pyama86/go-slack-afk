@@ -13,15 +13,15 @@ import (
 
 // FinishCommand handles the /finish command
 type FinishCommand struct {
-	client      *slack.Client
-	redisClient *store.RedisClient
+	client    *slack.Client
+	datastore store.Datastore
 }
 
 // NewFinishCommand creates a new FinishCommand
-func NewFinishCommand(client *slack.Client, redisClient *store.RedisClient) *FinishCommand {
+func NewFinishCommand(client *slack.Client, datastore store.Datastore) *FinishCommand {
 	return &FinishCommand{
-		client:      client,
-		redisClient: redisClient,
+		client:    client,
+		datastore: datastore,
 	}
 }
 
@@ -33,7 +33,7 @@ func (c *FinishCommand) Execute(cmd slack.SlashCommand) error {
 	channelID := cmd.ChannelID
 
 	// Add user to registered list
-	if err := c.redisClient.AddToList("registered", uid); err != nil {
+	if err := c.datastore.AddToList("registered", uid); err != nil {
 		slog.Error("Failed to add user to registered list", slog.Any("error", err))
 		return err
 	}
@@ -46,8 +46,8 @@ func (c *FinishCommand) Execute(cmd slack.SlashCommand) error {
 		message = fmt.Sprintf("%s は退勤しました。反応が遅れるかもしれません。", userName)
 	}
 
-	// Save to Redis with expiration until tomorrow morning
-	if err := c.redisClient.Set(uid, message); err != nil {
+	// Save to datastore with expiration until tomorrow morning
+	if err := c.datastore.Set(uid, message); err != nil {
 		slog.Error("Failed to set message", slog.Any("error", err))
 		return err
 	}
@@ -57,13 +57,13 @@ func (c *FinishCommand) Execute(cmd slack.SlashCommand) error {
 	now := time.Now().In(jst)
 	tomorrow := time.Date(now.Year(), now.Month(), now.Day()+1, 9, 0, 0, 0, jst)
 	expireDuration := tomorrow.Sub(now)
-	if err := c.redisClient.Expire(uid, expireDuration); err != nil {
+	if err := c.datastore.Expire(uid, expireDuration); err != nil {
 		slog.Error("Failed to set expiration", slog.Any("error", err))
 		return err
 	}
 
 	// Get user presence
-	userPresence, err := c.redisClient.GetUserPresence(uid)
+	userPresence, err := c.datastore.GetUserPresence(uid)
 	if err != nil {
 		slog.Error("Failed to get user presence", slog.Any("error", err))
 		return err
@@ -71,7 +71,7 @@ func (c *FinishCommand) Execute(cmd slack.SlashCommand) error {
 
 	// Set today's end time
 	userPresence["today_end"] = now.Format(time.RFC3339)
-	if err := c.redisClient.SetUserPresence(uid, userPresence); err != nil {
+	if err := c.datastore.SetUserPresence(uid, userPresence); err != nil {
 		slog.Error("Failed to set user presence", slog.Any("error", err))
 		return err
 	}

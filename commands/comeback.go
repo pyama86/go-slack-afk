@@ -13,15 +13,15 @@ import (
 
 // ComebackCommand handles the /comeback command
 type ComebackCommand struct {
-	client      *slack.Client
-	redisClient *store.RedisClient
+	client    *slack.Client
+	datastore store.Datastore
 }
 
 // NewComebackCommand creates a new ComebackCommand
-func NewComebackCommand(client *slack.Client, redisClient *store.RedisClient) *ComebackCommand {
+func NewComebackCommand(client *slack.Client, datastore store.Datastore) *ComebackCommand {
 	return &ComebackCommand{
-		client:      client,
-		redisClient: redisClient,
+		client:    client,
+		datastore: datastore,
 	}
 }
 
@@ -32,7 +32,7 @@ func (c *ComebackCommand) Execute(cmd slack.SlashCommand) error {
 	channelID := cmd.ChannelID
 
 	// Get user presence
-	userPresence, err := c.redisClient.GetUserPresence(uid)
+	userPresence, err := c.datastore.GetUserPresence(uid)
 	if err != nil {
 		slog.Error("Failed to get user presence", slog.Any("error", err))
 		return err
@@ -45,14 +45,14 @@ func (c *ComebackCommand) Execute(cmd slack.SlashCommand) error {
 		return err
 	}
 
-	// Remove user from Redis
-	if err := c.redisClient.Delete(uid); err != nil {
-		slog.Error("Failed to delete user from Redis", slog.Any("error", err))
+	// Remove user from datastore
+	if err := c.datastore.Delete(uid); err != nil {
+		slog.Error("Failed to delete user from datastore", slog.Any("error", err))
 		return err
 	}
 
 	// Remove user from registered list
-	if err := c.redisClient.RemoveFromList("registered", uid); err != nil {
+	if err := c.datastore.RemoveFromList("registered", uid); err != nil {
 		slog.Error("Failed to remove user from registered list", slog.Any("error", err))
 		return err
 	}

@@ -14,6 +14,9 @@ type RedisClient struct {
 	client *redis.Client
 }
 
+// RedisClientがDatastoreインターフェースを実装していることを保証
+var _ Datastore = (*RedisClient)(nil)
+
 func NewRedisClient(url string) (*RedisClient, error) {
 	opt, err := redis.ParseURL(url)
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 	"github.com/slack-go/slack/socketmode"
 )
 
-func StartSocketModeServer(redisClient *store.RedisClient) error {
+func StartSocketModeServer(datastore store.Datastore) error {
 	api := slack.New(
 		os.Getenv("SLACK_BOT_TOKEN"),
 		slack.OptionAppLevelToken(os.Getenv("SLACK_APP_TOKEN")),
@@ -19,8 +19,8 @@ func StartSocketModeServer(redisClient *store.RedisClient) error {
 
 	client := socketmode.New(api)
 
-	commandHandler := handlers.NewCommandHandler(api, redisClient)
-	eventHandler := handlers.NewEventHandler(api, redisClient)
+	commandHandler := handlers.NewCommandHandler(api, datastore)
+	eventHandler := handlers.NewEventHandler(api, datastore)
 
 	go func() {
 		for evt := range client.Events {

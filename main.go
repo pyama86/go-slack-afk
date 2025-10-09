@@ -36,19 +36,41 @@ func main() {
 		os.Exit(1)
 	}
 
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == "" {
-		redisURL = "redis://localhost:6379"
+	// データストアの初期化
+	var datastore store.Datastore
+	var err error
+
+	storeType := os.Getenv("STORE_TYPE")
+	if storeType == "" {
+		storeType = "redis" // デフォルトはRedis
 	}
 
-	redisClient, err := store.NewRedisClient(redisURL)
-	if err != nil {
-		slog.Error("Failed to initialize Redis client", slog.Any("error", err))
+	switch storeType {
+	case "dynamodb":
+		slog.Info("Initializing DynamoDB client...")
+		datastore, err = store.NewDynamoDBClient()
+		if err != nil {
+			slog.Error("Failed to initialize DynamoDB client", slog.Any("error", err))
+			os.Exit(1)
+		}
+	case "redis":
+		slog.Info("Initializing Redis client...")
+		redisURL := os.Getenv("REDIS_URL")
+		if redisURL == "" {
+			redisURL = "redis://localhost:6379"
+		}
+		datastore, err = store.NewRedisClient(redisURL)
+		if err != nil {
+			slog.Error("Failed to initialize Redis client", slog.Any("error", err))
+			os.Exit(1)
+		}
+	default:
+		slog.Error("Invalid STORE_TYPE", slog.String("store_type", storeType))
 		os.Exit(1)
 	}
 
-	slog.Info("Starting Slack bot...")
-	if err := slack.StartSocketModeServer(redisClient); err != nil {
+	slog.Info("Starting Slack bot...", slog.String("store_type", storeType))
+	if err := slack.StartSocketModeServer(datastore); err != nil {
 		slog.Error("Failed to start server", slog.Any("error", err))
 		os.Exit(1)
 	}

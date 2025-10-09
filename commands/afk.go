@@ -11,15 +11,15 @@ import (
 
 // AfkCommand handles the /afk command
 type AfkCommand struct {
-	client      *slack.Client
-	redisClient *store.RedisClient
+	client    *slack.Client
+	datastore store.Datastore
 }
 
 // NewAfkCommand creates a new AfkCommand
-func NewAfkCommand(client *slack.Client, redisClient *store.RedisClient) *AfkCommand {
+func NewAfkCommand(client *slack.Client, datastore store.Datastore) *AfkCommand {
 	return &AfkCommand{
-		client:      client,
-		redisClient: redisClient,
+		client:    client,
+		datastore: datastore,
 	}
 }
 
@@ -31,19 +31,19 @@ func (c *AfkCommand) Execute(cmd slack.SlashCommand) error {
 	channelID := cmd.ChannelID
 
 	// Add user to registered list
-	if err := c.redisClient.AddToList("registered", uid); err != nil {
+	if err := c.datastore.AddToList("registered", uid); err != nil {
 		slog.Error("Failed to add user to registered list", slog.Any("error", err))
 		return err
 	}
 
 	// Reset user's mention history
-	userPresence, err := c.redisClient.GetUserPresence(uid)
+	userPresence, err := c.datastore.GetUserPresence(uid)
 	if err != nil {
 		slog.Error("Failed to get user presence", slog.Any("error", err))
 		return err
 	}
 	userPresence["mention_history"] = []interface{}{}
-	if err := c.redisClient.SetUserPresence(uid, userPresence); err != nil {
+	if err := c.datastore.SetUserPresence(uid, userPresence); err != nil {
 		slog.Error("Failed to set user presence", slog.Any("error", err))
 		return err
 	}
@@ -66,8 +66,8 @@ func (c *AfkCommand) Execute(cmd slack.SlashCommand) error {
 		}
 	}
 
-	// Save to Redis
-	if err := c.redisClient.Set(uid, message); err != nil {
+	// Save to datastore
+	if err := c.datastore.Set(uid, message); err != nil {
 		slog.Error("Failed to set message", slog.Any("error", err))
 		return err
 	}
