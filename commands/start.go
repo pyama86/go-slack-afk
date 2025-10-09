@@ -65,8 +65,25 @@ func (c *StartCommand) Execute(cmd slack.SlashCommand) error {
 		startMessage = "おはようございます、今日も自分史上最高の日にしましょう!!1"
 	}
 
+	// Format mention history message
+	mentionText, hasMentions := FormatMentionHistory(userPresence)
+	var responseMessage string
+	if !hasMentions {
+		responseMessage = startMessage
+	} else {
+		responseMessage = startMessage + "\n\nいない間に飛んできたメンションです\n" + mentionText
+	}
+
+	// Clear mention history after displaying
+	if hasMentions {
+		userPresence["mention_history"] = []interface{}{}
+		if err := c.datastore.SetUserPresence(uid, userPresence); err != nil {
+			slog.Error("Failed to clear mention history", slog.Any("error", err))
+		}
+	}
+
 	// Response message
-	_, err = c.client.PostEphemeral(channelID, uid, slack.MsgOptionText(startMessage, false))
+	_, err = c.client.PostEphemeral(channelID, uid, slack.MsgOptionText(responseMessage, false))
 	if err != nil {
 		slog.Error("Failed to post ephemeral message", slog.Any("error", err))
 		return err
