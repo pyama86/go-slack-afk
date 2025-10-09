@@ -289,4 +289,48 @@ func TestRedisClient(t *testing.T) {
 			t.Errorf("Expected channel to be 'C123', got %v", mention["channel"])
 		}
 	})
+
+	t.Run("UserPresence TTL expiration", func(t *testing.T) {
+		uid := "test-user-ttl"
+
+		// プレゼンス情報を設定
+		presence := map[string]interface{}{
+			"custom_field": "test-value",
+		}
+		err := client.SetUserPresence(uid, presence)
+		if err != nil {
+			t.Fatalf("Failed to set user presence: %v", err)
+		}
+
+		// TTLを1秒に設定（Redisキーに直接Expireを設定）
+		key := uid + "-store"
+		err = client.Expire(key, 1*time.Second)
+		if err != nil {
+			t.Fatalf("Failed to set expiration: %v", err)
+		}
+
+		// すぐに取得できることを確認
+		retrievedPresence, err := client.GetUserPresence(uid)
+		if err != nil {
+			t.Fatalf("Failed to get user presence before expiration: %v", err)
+		}
+		if retrievedPresence["custom_field"] != "test-value" {
+			t.Errorf("Expected custom_field to be 'test-value', got %v", retrievedPresence["custom_field"])
+		}
+
+		// 2秒待ってTTL期限切れを確認
+		time.Sleep(2 * time.Second)
+		expiredPresence, err := client.GetUserPresence(uid)
+		if err != nil {
+			t.Fatalf("Failed to get user presence after expiration: %v", err)
+		}
+
+		// 期限切れ後はデフォルト値が返される
+		if expiredPresence["custom_field"] != nil {
+			t.Errorf("Expected custom_field to be nil after TTL expiration, got %v", expiredPresence["custom_field"])
+		}
+		if expiredPresence["last_active_start_time"] == nil {
+			t.Error("Expected default last_active_start_time to be set after TTL expiration")
+		}
+	})
 }

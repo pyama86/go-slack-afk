@@ -428,6 +428,21 @@ func (d *DynamoDBClient) GetUserPresence(uid string) (map[string]interface{}, er
 		}, nil
 	}
 
+	// Check TTL expiration
+	if ttlAttr, ok := result.Item["ttl"]; ok {
+		if ttlVal, ok := ttlAttr.(*types.AttributeValueMemberN); ok {
+			ttl, err := strconv.ParseInt(ttlVal.Value, 10, 64)
+			if err == nil && time.Now().Unix() > ttl {
+				// Return default presence data for expired items
+				jst, _ := time.LoadLocation("Asia/Tokyo")
+				now := time.Now().In(jst)
+				return map[string]interface{}{
+					"last_active_start_time": now.Format(time.RFC3339),
+				}, nil
+			}
+		}
+	}
+
 	if v, ok := result.Item["presence_data"].(*types.AttributeValueMemberS); ok {
 		var presenceData map[string]interface{}
 		if err := json.Unmarshal([]byte(v.Value), &presenceData); err != nil {

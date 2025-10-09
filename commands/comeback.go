@@ -1,10 +1,7 @@
 package commands
 
 import (
-	"fmt"
 	"log/slog"
-	"os"
-	"strings"
 
 	"github.com/pyama86/slack-afk/go/presentation/blocks"
 	"github.com/pyama86/slack-afk/go/store"
@@ -57,41 +54,20 @@ func (c *ComebackCommand) Execute(cmd slack.SlashCommand) error {
 		return err
 	}
 
-	// Check if there are any mentions
-	var mentionHistory []interface{}
-	if history, ok := userPresence["mention_history"].([]interface{}); ok {
-		mentionHistory = history
-	}
-
-	// Prepare response message
+	// Format mention history message
+	mentionText, hasMentions := FormatMentionHistory(userPresence)
 	var responseMessage string
-	if len(mentionHistory) == 0 {
+	if !hasMentions {
 		responseMessage = "おかえりなさい!!1特にいない間にメンションは飛んでこなかったみたいです。"
 	} else {
-		responseMessage = "おかえりなさい!!1\nいない間に飛んできたメンションです\n"
+		responseMessage = "おかえりなさい!!1\nいない間に飛んできたメンションです\n" + mentionText
+	}
 
-		slackDomain := os.Getenv("SLACK_DOMAIN")
-		if slackDomain == "" {
-			slackDomain = "slack.com"
-		}
-
-		for _, mention := range mentionHistory {
-			if m, ok := mention.(map[string]interface{}); ok {
-				user, _ := m["user"].(string)
-				channel, _ := m["channel"].(string)
-				text, _ := m["text"].(string)
-				eventTS, _ := m["event_ts"].(string)
-
-				// Format timestamp for link
-				linkTS := eventTS
-				if linkTS != "" {
-					linkTS = strings.ReplaceAll(linkTS, ".", "")
-				}
-
-				mentionText := fmt.Sprintf("<@%s>: <https://%s/archives/%s/p%s|Link>\n内容: %s\n",
-					user, slackDomain, channel, linkTS, text)
-				responseMessage += mentionText
-			}
+	// Clear mention history after displaying
+	if hasMentions {
+		userPresence["mention_history"] = []interface{}{}
+		if err := c.datastore.SetUserPresence(uid, userPresence); err != nil {
+			slog.Error("Failed to clear mention history", slog.Any("error", err))
 		}
 	}
 

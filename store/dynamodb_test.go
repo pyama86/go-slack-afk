@@ -1,9 +1,15 @@
 package store
 
 import (
+	"context"
 	"os"
+	"strconv"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func TestDynamoDBClient(t *testing.T) {
@@ -273,6 +279,64 @@ func TestDynamoDBClient(t *testing.T) {
 
 		if mention["channel"] != "C123" {
 			t.Errorf("Expected channel to be 'C123', got %v", mention["channel"])
+		}
+	})
+
+	t.Run("UserPresence TTL expiration", func(t *testing.T) {
+		uid := "test-user-ttl"
+
+		// プレゼンス情報を設定
+		presence := map[string]interface{}{
+			"custom_field": "test-value",
+		}
+		err := client.SetUserPresence(uid, presence)
+		if err != nil {
+			t.Fatalf("Failed to set user presence: %v", err)
+		}
+
+		// TTLを1秒後に設定（直接DynamoDBを操作）
+		key := uid + "-store"
+		ttl := time.Now().Add(1 * time.Second).Unix()
+		updateInput := &dynamodb.UpdateItemInput{
+			TableName: aws.String(client.presenceTableName),
+			Key: map[string]types.AttributeValue{
+				"user_id": &types.AttributeValueMemberS{Value: key},
+			},
+			UpdateExpression: aws.String("SET #ttl = :ttl"),
+			ExpressionAttributeNames: map[string]string{
+				"#ttl": "ttl",
+			},
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":ttl": &types.AttributeValueMemberN{Value: strconv.FormatInt(ttl, 10)},
+			},
+		}
+		_, err = client.db.UpdateItem(context.TODO(), updateInput)
+		if err != nil {
+			t.Fatalf("Failed to update TTL: %v", err)
+		}
+
+		// すぐに取得できることを確認
+		retrievedPresence, err := client.GetUserPresence(uid)
+		if err != nil {
+			t.Fatalf("Failed to get user presence before expiration: %v", err)
+		}
+		if retrievedPresence["custom_field"] != "test-value" {
+			t.Errorf("Expected custom_field to be 'test-value', got %v", retrievedPresence["custom_field"])
+		}
+
+		// 2秒待ってTTL期限切れを確認
+		time.Sleep(2 * time.Second)
+		expiredPresence, err := client.GetUserPresence(uid)
+		if err != nil {
+			t.Fatalf("Failed to get user presence after expiration: %v", err)
+		}
+
+		// 期限切れ後はデフォルト値が返される
+		if expiredPresence["custom_field"] != nil {
+			t.Errorf("Expected custom_field to be nil after TTL expiration, got %v", expiredPresence["custom_field"])
+		}
+		if expiredPresence["last_active_start_time"] == nil {
+			t.Error("Expected default last_active_start_time to be set after TTL expiration")
 		}
 	})
 }

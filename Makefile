@@ -1,10 +1,18 @@
-.PHONY: lint fmt ci test test-redis test-dynamodb devdeps build run
+.PHONY: lint fmt ci test test-redis test-dynamodb devdeps build run run-dynamodb
 LINTER := golangci-lint
 build:
 	go build --o bin/afk .
 ci: devdeps test
 run:
 	go run .
+
+run-dynamodb:
+	@echo ">> Starting DynamoDB Local..."
+	@docker-compose up -d dynamodb-local
+	@echo ">> Waiting for DynamoDB Local to be ready..."
+	@sleep 3
+	@echo ">> Running application with DynamoDB..."
+	DYNAMO_LOCAL=1 go run .
 
 lint:
 	@echo ">> Running linter ($(LINTER))"
