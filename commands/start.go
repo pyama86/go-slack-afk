@@ -12,15 +12,15 @@ import (
 
 // StartCommand handles the /start command
 type StartCommand struct {
-	client      *slack.Client
-	redisClient *store.RedisClient
+	client    *slack.Client
+	datastore store.Datastore
 }
 
 // NewStartCommand creates a new StartCommand
-func NewStartCommand(client *slack.Client, redisClient *store.RedisClient) *StartCommand {
+func NewStartCommand(client *slack.Client, datastore store.Datastore) *StartCommand {
 	return &StartCommand{
-		client:      client,
-		redisClient: redisClient,
+		client:    client,
+		datastore: datastore,
 	}
 }
 
@@ -31,13 +31,13 @@ func (c *StartCommand) Execute(cmd slack.SlashCommand) error {
 	channelID := cmd.ChannelID
 
 	// Remove user from registered list
-	if err := c.redisClient.RemoveFromList("registered", uid); err != nil {
+	if err := c.datastore.RemoveFromList("registered", uid); err != nil {
 		slog.Error("Failed to remove user from registered list", slog.Any("error", err))
 		return err
 	}
 
 	// Get user presence
-	userPresence, err := c.redisClient.GetUserPresence(uid)
+	userPresence, err := c.datastore.GetUserPresence(uid)
 	if err != nil {
 		slog.Error("Failed to get user presence", slog.Any("error", err))
 		return err
@@ -47,7 +47,7 @@ func (c *StartCommand) Execute(cmd slack.SlashCommand) error {
 	jst, _ := time.LoadLocation("Asia/Tokyo")
 	now := time.Now().In(jst)
 	userPresence["today_begin"] = now.Format(time.RFC3339)
-	if err := c.redisClient.SetUserPresence(uid, userPresence); err != nil {
+	if err := c.datastore.SetUserPresence(uid, userPresence); err != nil {
 		slog.Error("Failed to set user presence", slog.Any("error", err))
 		return err
 	}

@@ -12,14 +12,14 @@ import (
 )
 
 type EventHandler struct {
-	client      *slack.Client
-	redisClient *store.RedisClient
+	client    *slack.Client
+	datastore store.Datastore
 }
 
-func NewEventHandler(client *slack.Client, redisClient *store.RedisClient) *EventHandler {
+func NewEventHandler(client *slack.Client, datastore store.Datastore) *EventHandler {
 	return &EventHandler{
-		client:      client,
-		redisClient: redisClient,
+		client:    client,
+		datastore: datastore,
 	}
 }
 
@@ -60,7 +60,7 @@ func (h *EventHandler) HandleMessage(ev *slackevents.MessageEvent) error {
 	}
 
 	// Get registered users
-	registeredUsers, err := h.redisClient.GetListRange("registered", 0, -1)
+	registeredUsers, err := h.datastore.GetListRange("registered", 0, -1)
 	if err != nil {
 		slog.Error("Failed to get registered users", slog.Any("error", err))
 		return err
@@ -77,13 +77,13 @@ func (h *EventHandler) HandleMessage(ev *slackevents.MessageEvent) error {
 	// Process each mentioned user
 	for _, uid := range mentionedUsers {
 		// Get user's away message
-		message, err := h.redisClient.Get(uid)
+		message, err := h.datastore.Get(uid)
 		if err != nil || message == "" {
 			continue
 		}
 
 		// Update user's mention history
-		userPresence, err := h.redisClient.GetUserPresence(uid)
+		userPresence, err := h.datastore.GetUserPresence(uid)
 		if err != nil {
 			slog.Error("Failed to get user presence", slog.Any("error", err))
 			continue
@@ -118,7 +118,7 @@ func (h *EventHandler) HandleMessage(ev *slackevents.MessageEvent) error {
 		userPresence["mention_history"] = mentionHistory
 
 		// Save updated user presence
-		if err := h.redisClient.SetUserPresence(uid, userPresence); err != nil {
+		if err := h.datastore.SetUserPresence(uid, userPresence); err != nil {
 			slog.Error("Failed to set user presence", slog.Any("error", err))
 			continue
 		}

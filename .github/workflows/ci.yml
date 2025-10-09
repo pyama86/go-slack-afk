@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.2'
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local:latest
+        ports:
+          - 8000:8000
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.2'
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Wait for DynamoDB Local
+        run: |
+          echo "Waiting for DynamoDB Local to be ready..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000 > /dev/null 2>&1; then
+              echo "DynamoDB Local is ready"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run tests (with DynamoDB and Redis)
+        env:
+          DYNAMO_LOCAL: "1"
+          DYNAMO_ENDPOINT: "http://localhost:8000"
+          REDIS_URL: "redis://localhost:6379"
+        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Verify both datastores were tested
+        run: |
+          echo "Checking test coverage for both Redis and DynamoDB implementations..."
+          go test -v ./store/... -run TestRedisClient 2>&1 | tee redis-test.log
+          go test -v ./store/... -run TestDynamoDBClient 2>&1 | tee dynamodb-test.log
+          if grep -q "SKIP" redis-test.log; then
+            echo "Warning: Redis tests were skipped"
+          fi
+          if grep -q "SKIP" dynamodb-test.log; then
+            echo "Warning: DynamoDB tests were skipped"
+          fi
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          flags: unittests
+          fail_ci_if_error: false
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.2'
+
+      - name: Build
+        run: go build -v -o slack-afk .
+
+      - name: Verify binary
+        run: |
+          file slack-afk
+          ./slack-afk --help || true

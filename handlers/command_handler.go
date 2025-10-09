@@ -9,23 +9,23 @@ import (
 )
 
 type CommandHandler struct {
-	client      *slack.Client
-	redisClient *store.RedisClient
-	commands    map[string]commands.Command
+	client    *slack.Client
+	datastore store.Datastore
+	commands  map[string]commands.Command
 }
 
-func NewCommandHandler(client *slack.Client, redisClient *store.RedisClient) *CommandHandler {
+func NewCommandHandler(client *slack.Client, datastore store.Datastore) *CommandHandler {
 	h := &CommandHandler{
-		client:      client,
-		redisClient: redisClient,
-		commands:    make(map[string]commands.Command),
+		client:    client,
+		datastore: datastore,
+		commands:  make(map[string]commands.Command),
 	}
 
-	h.commands["/afk"] = commands.NewAfkCommand(client, redisClient)
-	h.commands["/lunch"] = commands.NewLunchCommand(client, redisClient)
-	h.commands["/start"] = commands.NewStartCommand(client, redisClient)
-	h.commands["/finish"] = commands.NewFinishCommand(client, redisClient)
-	h.commands["/comeback"] = commands.NewComebackCommand(client, redisClient)
+	h.commands["/afk"] = commands.NewAfkCommand(client, datastore)
+	h.commands["/lunch"] = commands.NewLunchCommand(client, datastore)
+	h.commands["/start"] = commands.NewStartCommand(client, datastore)
+	h.commands["/finish"] = commands.NewFinishCommand(client, datastore)
+	h.commands["/comeback"] = commands.NewComebackCommand(client, datastore)
 
 	return h
 }

@@ -12,15 +12,15 @@ import (
 
 // LunchCommand handles the /lunch command
 type LunchCommand struct {
-	client      *slack.Client
-	redisClient *store.RedisClient
+	client    *slack.Client
+	datastore store.Datastore
 }
 
 // NewLunchCommand creates a new LunchCommand
-func NewLunchCommand(client *slack.Client, redisClient *store.RedisClient) *LunchCommand {
+func NewLunchCommand(client *slack.Client, datastore store.Datastore) *LunchCommand {
 	return &LunchCommand{
-		client:      client,
-		redisClient: redisClient,
+		client:    client,
+		datastore: datastore,
 	}
 }
 
@@ -32,19 +32,19 @@ func (c *LunchCommand) Execute(cmd slack.SlashCommand) error {
 	channelID := cmd.ChannelID
 
 	// Add user to registered list
-	if err := c.redisClient.AddToList("registered", uid); err != nil {
+	if err := c.datastore.AddToList("registered", uid); err != nil {
 		slog.Error("Failed to add user to registered list", slog.Any("error", err))
 		return err
 	}
 
 	// Reset user's mention history
-	userPresence, err := c.redisClient.GetUserPresence(uid)
+	userPresence, err := c.datastore.GetUserPresence(uid)
 	if err != nil {
 		slog.Error("Failed to get user presence", slog.Any("error", err))
 		return err
 	}
 	userPresence["mention_history"] = []interface{}{}
-	if err := c.redisClient.SetUserPresence(uid, userPresence); err != nil {
+	if err := c.datastore.SetUserPresence(uid, userPresence); err != nil {
 		slog.Error("Failed to set user presence", slog.Any("error", err))
 		return err
 	}
@@ -57,12 +57,12 @@ func (c *LunchCommand) Execute(cmd slack.SlashCommand) error {
 		message = fmt.Sprintf("%s はランチに行っています。反応が遅れるかもしれません。", userName)
 	}
 
-	// Save to Redis with 1 hour expiration
-	if err := c.redisClient.Set(uid, message); err != nil {
+	// Save to datastore with 1 hour expiration
+	if err := c.datastore.Set(uid, message); err != nil {
 		slog.Error("Failed to set message", slog.Any("error", err))
 		return err
 	}
-	if err := c.redisClient.Expire(uid, 1*time.Hour); err != nil {
+	if err := c.datastore.Expire(uid, 1*time.Hour); err != nil {
 		slog.Error("Failed to set expiration", slog.Any("error", err))
 		return err
 	}
@@ -80,7 +80,7 @@ func (c *LunchCommand) Execute(cmd slack.SlashCommand) error {
 
 	// Save last lunch date
 	userPresence["last_lunch_date"] = now.Format(time.RFC3339)
-	if err := c.redisClient.SetUserPresence(uid, userPresence); err != nil {
+	if err := c.datastore.SetUserPresence(uid, userPresence); err != nil {
 		slog.Error("Failed to set user presence", slog.Any("error", err))
 		return err
 	}
