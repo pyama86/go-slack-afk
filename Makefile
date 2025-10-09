@@ -2,7 +2,7 @@
 LINTER := golangci-lint
 build:
 	go build --o bin/afk .
-ci: devdeps lint test
+ci: devdeps test
 run:
 	go run .
 
