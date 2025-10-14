@@ -35,13 +35,6 @@ func (c *ComebackCommand) Execute(cmd slack.SlashCommand) error {
 		return err
 	}
 
-	// Post message to channel
-	_, _, err = c.client.PostMessage(channelID, slack.MsgOptionBlocks(blocks.ComebackBlocks(userName)...))
-	if err != nil {
-		slog.Error("Failed to post message", slog.Any("error", err))
-		return err
-	}
-
 	// Remove user from datastore
 	if err := c.datastore.Delete(uid); err != nil {
 		slog.Error("Failed to delete user from datastore", slog.Any("error", err))
@@ -51,6 +44,13 @@ func (c *ComebackCommand) Execute(cmd slack.SlashCommand) error {
 	// Remove user from registered list
 	if err := c.datastore.RemoveFromList("registered", uid); err != nil {
 		slog.Error("Failed to remove user from registered list", slog.Any("error", err))
+		return err
+	}
+
+	// Post message to channel
+	_, _, err = c.client.PostMessage(channelID, slack.MsgOptionBlocks(blocks.ComebackBlocks(userName)...))
+	if err != nil {
+		slog.Error("Failed to post message", slog.Any("error", err))
 		return err
 	}
 

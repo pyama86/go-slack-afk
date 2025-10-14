@@ -36,6 +36,12 @@ func (c *StartCommand) Execute(cmd slack.SlashCommand) error {
 		return err
 	}
 
+	// Remove user from datastore
+	if err := c.datastore.Delete(uid); err != nil {
+		slog.Error("Failed to delete user from datastore", slog.Any("error", err))
+		return err
+	}
+
 	// Get user presence
 	userPresence, err := c.datastore.GetUserPresence(uid)
 	if err != nil {

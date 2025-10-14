@@ -8,7 +8,7 @@ import (
 	"github.com/slack-go/slack"
 )
 
-func TestStartCommand_Execute(t *testing.T) {
+func TestComebackCommand_Execute(t *testing.T) {
 	t.Run("Execute with no mention history", func(t *testing.T) {
 		// Redis/DynamoDBが必要なので、環境変数で設定されている場合のみテストを実行
 		if os.Getenv("REDIS_URL") == "" && os.Getenv("DYNAMO_LOCAL") == "" {
@@ -22,7 +22,7 @@ func TestStartCommand_Execute(t *testing.T) {
 		if os.Getenv("DYNAMO_LOCAL") != "" {
 			t.Setenv("DYNAMO_LOCAL", "1")
 			t.Setenv("DYNAMO_ENDPOINT", "http://localhost:8000")
-			t.Setenv("DYNAMO_TABLE_PREFIX", "test_slack_afk_start")
+			t.Setenv("DYNAMO_TABLE_PREFIX", "test_slack_afk_comeback")
 			datastore, err = store.NewDynamoDBClient()
 		} else if os.Getenv("REDIS_URL") != "" {
 			datastore, err = store.NewRedisClient(os.Getenv("REDIS_URL"))
@@ -35,10 +35,10 @@ func TestStartCommand_Execute(t *testing.T) {
 		// Slack clientのモック（実際には使用されない）
 		client := slack.New("test-token")
 
-		cmd := NewStartCommand(client, datastore)
+		cmd := NewComebackCommand(client, datastore)
 
 		// テストユーザーのプレゼンスを設定
-		testUID := "test-user-123"
+		testUID := "test-user-comeback-123"
 		presence := map[string]interface{}{
 			"mention_history": []interface{}{},
 		}
@@ -93,7 +93,7 @@ func TestStartCommand_Execute(t *testing.T) {
 		if os.Getenv("DYNAMO_LOCAL") != "" {
 			t.Setenv("DYNAMO_LOCAL", "1")
 			t.Setenv("DYNAMO_ENDPOINT", "http://localhost:8000")
-			t.Setenv("DYNAMO_TABLE_PREFIX", "test_slack_afk_start")
+			t.Setenv("DYNAMO_TABLE_PREFIX", "test_slack_afk_comeback")
 			datastore, err = store.NewDynamoDBClient()
 		} else if os.Getenv("REDIS_URL") != "" {
 			datastore, err = store.NewRedisClient(os.Getenv("REDIS_URL"))
@@ -106,10 +106,10 @@ func TestStartCommand_Execute(t *testing.T) {
 		// Slack clientのモック（実際には使用されない）
 		client := slack.New("test-token")
 
-		cmd := NewStartCommand(client, datastore)
+		cmd := NewComebackCommand(client, datastore)
 
 		// テストユーザーのプレゼンスを設定
-		testUID := "test-user-456"
+		testUID := "test-user-comeback-456"
 		presence := map[string]interface{}{
 			"mention_history": []interface{}{
 				map[string]interface{}{
