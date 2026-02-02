@@ -50,9 +50,14 @@ func main() {
 		slog.Info("Initializing DynamoDB client...")
 		datastore, err = store.NewDynamoDBClient()
 		if err != nil {
-			slog.Error("Failed to initialize DynamoDB client", slog.Any("error", err))
+			slog.Error("Failed to initialize DynamoDB client",
+				slog.String("store_type", storeType),
+				slog.String("dynamodb_local", os.Getenv("DYNAMO_LOCAL")),
+				slog.String("dynamodb_endpoint", os.Getenv("DYNAMO_ENDPOINT")),
+				slog.Any("error", err))
 			os.Exit(1)
 		}
+		slog.Info("DynamoDB client initialized successfully")
 	case "redis":
 		slog.Info("Initializing Redis client...")
 		redisURL := os.Getenv("REDIS_URL")
@@ -61,9 +66,13 @@ func main() {
 		}
 		datastore, err = store.NewRedisClient(redisURL)
 		if err != nil {
-			slog.Error("Failed to initialize Redis client", slog.Any("error", err))
+			slog.Error("Failed to initialize Redis client",
+				slog.String("store_type", storeType),
+				slog.String("redis_url", redisURL),
+				slog.Any("error", err))
 			os.Exit(1)
 		}
+		slog.Info("Redis client initialized successfully")
 	default:
 		slog.Error("Invalid STORE_TYPE", slog.String("store_type", storeType))
 		os.Exit(1)

@@ -34,7 +34,11 @@ func (h *EventHandler) HandleMention(ev *slackevents.AppMentionEvent) error {
 			slack.MsgOptionTS(ev.ThreadTimeStamp),
 		)
 		if err != nil {
-			slog.Error("Failed to post pong message", slog.Any("error", err))
+			slog.Error("Failed to post pong message",
+				slog.String("channel", ev.Channel),
+				slog.String("user", ev.User),
+				slog.String("thread_ts", ev.ThreadTimeStamp),
+				slog.Any("error", err))
 			return err
 		}
 		return nil
@@ -62,7 +66,10 @@ func (h *EventHandler) HandleMessage(ev *slackevents.MessageEvent) error {
 	// Get registered users
 	registeredUsers, err := h.datastore.GetListRange("registered", 0, -1)
 	if err != nil {
-		slog.Error("Failed to get registered users", slog.Any("error", err))
+		slog.Error("Failed to get registered users",
+			slog.String("channel", ev.Channel),
+			slog.String("user", ev.User),
+			slog.Any("error", err))
 		return err
 	}
 
@@ -78,14 +85,24 @@ func (h *EventHandler) HandleMessage(ev *slackevents.MessageEvent) error {
 	for _, uid := range mentionedUsers {
 		// Get user's away message
 		message, err := h.datastore.Get(uid)
-		if err != nil || message == "" {
+		if err != nil {
+			slog.Error("Failed to get user away message",
+				slog.String("uid", uid),
+				slog.String("channel", ev.Channel),
+				slog.Any("error", err))
+			continue
+		}
+		if message == "" {
 			continue
 		}
 
 		// Update user's mention history
 		userPresence, err := h.datastore.GetUserPresence(uid)
 		if err != nil {
-			slog.Error("Failed to get user presence", slog.Any("error", err))
+			slog.Error("Failed to get user presence",
+				slog.String("uid", uid),
+				slog.String("channel", ev.Channel),
+				slog.Any("error", err))
 			continue
 		}
 
@@ -119,7 +136,10 @@ func (h *EventHandler) HandleMessage(ev *slackevents.MessageEvent) error {
 
 		// Save updated user presence
 		if err := h.datastore.SetUserPresence(uid, userPresence); err != nil {
-			slog.Error("Failed to set user presence", slog.Any("error", err))
+			slog.Error("Failed to set user presence",
+				slog.String("uid", uid),
+				slog.String("channel", ev.Channel),
+				slog.Any("error", err))
 			continue
 		}
 
@@ -130,7 +150,12 @@ func (h *EventHandler) HandleMessage(ev *slackevents.MessageEvent) error {
 			slack.MsgOptionTS(ev.ThreadTimeStamp),
 		)
 		if err != nil {
-			slog.Error("Failed to post auto-response", slog.Any("error", err))
+			slog.Error("Failed to post auto-response",
+				slog.String("uid", uid),
+				slog.String("channel", ev.Channel),
+				slog.String("message", message),
+				slog.String("thread_ts", ev.ThreadTimeStamp),
+				slog.Any("error", err))
 			continue
 		}
 	}
@@ -154,7 +179,11 @@ func (h *EventHandler) HandleHelp(ev *slackevents.AppMentionEvent) error {
 	)
 
 	if err != nil {
-		slog.Error("Failed to post help message", slog.Any("error", err))
+		slog.Error("Failed to post help message",
+			slog.String("channel", ev.Channel),
+			slog.String("user", ev.User),
+			slog.String("thread_ts", ev.ThreadTimeStamp),
+			slog.Any("error", err))
 		return err
 	}
 
