@@ -31,19 +31,31 @@ func NewCommandHandler(client *slack.Client, datastore store.Datastore) *Command
 }
 
 func (h *CommandHandler) Handle(cmd slack.SlashCommand) {
-	slog.Info("Received command", slog.String("command", cmd.Command), slog.String("user", cmd.UserName))
+	slog.Info("Received command", slog.String("command", cmd.Command), slog.String("user", cmd.UserName), slog.String("channel", cmd.ChannelID))
 
 	if command, ok := h.commands[cmd.Command]; ok {
 		if err := command.Execute(cmd); err != nil {
-			slog.Error("Failed to execute command", slog.String("command", cmd.Command), slog.Any("error", err))
+			slog.Error("Failed to execute command",
+				slog.String("command", cmd.Command),
+				slog.String("user", cmd.UserName),
+				slog.String("channel", cmd.ChannelID),
+				slog.Any("error", err))
 			if _, err := h.client.PostEphemeral(cmd.ChannelID, cmd.UserID, slack.MsgOptionText("Failed to execute command: "+err.Error(), false)); err != nil {
-				slog.Error("Failed to post ephemeral message", slog.Any("error", err))
+				slog.Error("Failed to post ephemeral error message",
+					slog.String("command", cmd.Command),
+					slog.String("channel", cmd.ChannelID),
+					slog.String("user", cmd.UserID),
+					slog.Any("error", err))
 			}
 		}
 	} else {
-		slog.Info("Unknown command", slog.String("command", cmd.Command))
+		slog.Info("Unknown command", slog.String("command", cmd.Command), slog.String("user", cmd.UserName))
 		if _, err := h.client.PostEphemeral(cmd.ChannelID, cmd.UserID, slack.MsgOptionText("Unknown command: "+cmd.Command, false)); err != nil {
-			slog.Error("Failed to post ephemeral message", slog.Any("error", err))
+			slog.Error("Failed to post unknown command ephemeral message",
+				slog.String("command", cmd.Command),
+				slog.String("channel", cmd.ChannelID),
+				slog.String("user", cmd.UserID),
+				slog.Any("error", err))
 		}
 	}
 }

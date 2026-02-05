@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -60,6 +61,7 @@ func NewDynamoDBClient() (*DynamoDBClient, error) {
 			config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy", "dummy", "dummy")),
 		)
 		if err != nil {
+			slog.Error("Failed to load DynamoDB local configuration", slog.Any("error", err))
 			return nil, fmt.Errorf("failed to load configuration: %v", err)
 		}
 
@@ -73,12 +75,15 @@ func NewDynamoDBClient() (*DynamoDBClient, error) {
 				o.BaseEndpoint = aws.String(endpoint)
 			},
 		)
+		slog.Info("Using DynamoDB local", slog.String("endpoint", endpoint))
 	} else {
 		cfg, err := config.LoadDefaultConfig(context.TODO())
 		if err != nil {
+			slog.Error("Failed to load DynamoDB AWS configuration", slog.Any("error", err))
 			return nil, fmt.Errorf("failed to load configuration: %v", err)
 		}
 		db = dynamodb.NewFromConfig(cfg)
+		slog.Info("Using DynamoDB AWS service")
 	}
 
 	client := &DynamoDBClient{
@@ -90,8 +95,10 @@ func NewDynamoDBClient() (*DynamoDBClient, error) {
 
 	if os.Getenv("DYNAMO_LOCAL") != "" {
 		if err := client.EnsureTables(); err != nil {
+			slog.Error("Failed to ensure DynamoDB tables", slog.Any("error", err))
 			return nil, err
 		}
+		slog.Info("DynamoDB tables ensured successfully")
 	}
 
 	return client, nil
@@ -249,6 +256,9 @@ func (d *DynamoDBClient) Set(key string, value string) error {
 	}
 
 	_, err := d.db.PutItem(context.TODO(), input)
+	if err != nil {
+		slog.Error("DynamoDB Set operation failed", slog.String("key", key), slog.String("table", d.kvTableName), slog.Any("error", err))
+	}
 	return err
 }
 
@@ -263,6 +273,7 @@ func (d *DynamoDBClient) Get(key string) (string, error) {
 
 	result, err := d.db.GetItem(context.TODO(), input)
 	if err != nil {
+		slog.Error("DynamoDB Get operation failed", slog.String("key", key), slog.String("table", d.kvTableName), slog.Any("error", err))
 		return "", err
 	}
 
@@ -307,6 +318,9 @@ func (d *DynamoDBClient) Expire(key string, duration time.Duration) error {
 	}
 
 	_, err := d.db.UpdateItem(context.TODO(), input)
+	if err != nil {
+		slog.Error("DynamoDB Expire operation failed", slog.String("key", key), slog.Duration("duration", duration), slog.String("table", d.kvTableName), slog.Any("error", err))
+	}
 	return err
 }
 
@@ -320,6 +334,9 @@ func (d *DynamoDBClient) Delete(key string) error {
 	}
 
 	_, err := d.db.DeleteItem(context.TODO(), input)
+	if err != nil {
+		slog.Error("DynamoDB Delete operation failed", slog.String("key", key), slog.String("table", d.kvTableName), slog.Any("error", err))
+	}
 	return err
 }
 
@@ -342,6 +359,9 @@ func (d *DynamoDBClient) AddToList(key string, value string) error {
 	}
 
 	_, err := d.db.PutItem(context.TODO(), input)
+	if err != nil {
+		slog.Error("DynamoDB AddToList operation failed", slog.String("key", key), slog.String("value", value), slog.String("table", d.listTableName), slog.Any("error", err))
+	}
 	return err
 }
 
@@ -358,6 +378,7 @@ func (d *DynamoDBClient) GetListRange(key string, start, stop int64) ([]string, 
 
 	result, err := d.db.Query(context.TODO(), input)
 	if err != nil {
+		slog.Error("DynamoDB GetListRange operation failed", slog.String("key", key), slog.Int64("start", start), slog.Int64("stop", stop), slog.String("table", d.listTableName), slog.Any("error", err))
 		return nil, err
 	}
 
@@ -402,6 +423,9 @@ func (d *DynamoDBClient) RemoveFromList(key string, value string) error {
 	}
 
 	_, err := d.db.DeleteItem(context.TODO(), input)
+	if err != nil {
+		slog.Error("DynamoDB RemoveFromList operation failed", slog.String("key", key), slog.String("value", value), slog.String("table", d.listTableName), slog.Any("error", err))
+	}
 	return err
 }
 
@@ -417,6 +441,7 @@ func (d *DynamoDBClient) GetUserPresence(uid string) (map[string]interface{}, er
 
 	result, err := d.db.GetItem(context.TODO(), input)
 	if err != nil {
+		slog.Error("DynamoDB GetUserPresence operation failed", slog.String("key", key), slog.String("uid", uid), slog.String("table", d.presenceTableName), slog.Any("error", err))
 		return nil, err
 	}
 
@@ -446,6 +471,7 @@ func (d *DynamoDBClient) GetUserPresence(uid string) (map[string]interface{}, er
 	if v, ok := result.Item["presence_data"].(*types.AttributeValueMemberS); ok {
 		var presenceData map[string]interface{}
 		if err := json.Unmarshal([]byte(v.Value), &presenceData); err != nil {
+			slog.Error("Failed to unmarshal user presence data", slog.String("key", key), slog.String("uid", uid), slog.String("data", v.Value), slog.Any("error", err))
 			return nil, err
 		}
 		return presenceData, nil
@@ -459,6 +485,7 @@ func (d *DynamoDBClient) SetUserPresence(uid string, data map[string]interface{}
 	key := uid + "-store"
 	jsonData, err := json.Marshal(data)
 	if err != nil {
+		slog.Error("Failed to marshal user presence data", slog.String("key", key), slog.String("uid", uid), slog.Any("error", err))
 		return err
 	}
 
@@ -476,5 +503,8 @@ func (d *DynamoDBClient) SetUserPresence(uid string, data map[string]interface{}
 	}
 
 	_, err = d.db.PutItem(context.TODO(), input)
+	if err != nil {
+		slog.Error("DynamoDB SetUserPresence operation failed", slog.String("key", key), slog.String("uid", uid), slog.String("table", d.presenceTableName), slog.Any("error", err))
+	}
 	return err
 }
