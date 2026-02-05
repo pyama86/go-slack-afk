@@ -31,7 +31,7 @@ func NewCommandHandler(client *slack.Client, datastore store.Datastore) *Command
 }
 
 func (h *CommandHandler) Handle(cmd slack.SlashCommand) {
-	slog.Info("Received command", slog.String("command", cmd.Command), slog.String("user", cmd.UserName), slog.String("channel", cmd.ChannelID), slog.String("text", cmd.Text))
+	slog.Info("Received command", slog.String("command", cmd.Command), slog.String("user", cmd.UserName), slog.String("channel", cmd.ChannelID))
 
 	if command, ok := h.commands[cmd.Command]; ok {
 		if err := command.Execute(cmd); err != nil {
@@ -39,7 +39,6 @@ func (h *CommandHandler) Handle(cmd slack.SlashCommand) {
 				slog.String("command", cmd.Command),
 				slog.String("user", cmd.UserName),
 				slog.String("channel", cmd.ChannelID),
-				slog.String("text", cmd.Text),
 				slog.Any("error", err))
 			if _, err := h.client.PostEphemeral(cmd.ChannelID, cmd.UserID, slack.MsgOptionText("Failed to execute command: "+err.Error(), false)); err != nil {
 				slog.Error("Failed to post ephemeral error message",
