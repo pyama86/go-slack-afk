@@ -1,15 +1,61 @@
 package handlers
 
 import (
+	"fmt"
 	"log/slog"
+	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/pyama86/slack-afk/go/presentation/blocks"
 	"github.com/pyama86/slack-afk/go/store"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 )
+
+const defaultMentionThrottleInterval = 30 * time.Minute
+
+func mentionThrottleKey(uid, channel, threadTS string) string {
+	return fmt.Sprintf("mention-throttle:%s:%s:%s", uid, channel, threadTS)
+}
+
+func shouldThrottleAutoResponse(datastore store.Datastore, uid, channel, threadTS string) bool {
+	if threadTS == "" {
+		return false
+	}
+	throttled, _ := datastore.Get(mentionThrottleKey(uid, channel, threadTS))
+	return throttled != ""
+}
+
+func markAutoResponseThrottled(datastore store.Datastore, uid, channel, threadTS string) error {
+	if threadTS == "" {
+		return nil
+	}
+	return datastore.SetEX(mentionThrottleKey(uid, channel, threadTS), "1", mentionThrottleInterval())
+}
+
+func mentionThrottleInterval() time.Duration {
+	val := os.Getenv("AFK_MENTION_THROTTLE_INTERVAL")
+	if val == "" {
+		return defaultMentionThrottleInterval
+	}
+	d, err := time.ParseDuration(val)
+	if err != nil {
+		slog.Warn("Invalid AFK_MENTION_THROTTLE_INTERVAL, falling back to default",
+			slog.String("value", val),
+			slog.Duration("default", defaultMentionThrottleInterval),
+			slog.Any("error", err))
+		return defaultMentionThrottleInterval
+	}
+	if d <= 0 {
+		slog.Warn("AFK_MENTION_THROTTLE_INTERVAL must be positive, falling back to default",
+			slog.String("value", val),
+			slog.Duration("default", defaultMentionThrottleInterval))
+		return defaultMentionThrottleInterval
+	}
+	return d
+}
 
 type EventHandler struct {
 	client    *slack.Client
@@ -143,6 +189,15 @@ func (h *EventHandler) HandleMessage(ev *slackevents.MessageEvent) error {
 			continue
 		}
 
+		// 同じスレッド内のメンションは AFK_MENTION_THROTTLE_INTERVAL の間、自動応答を抑制する
+		if shouldThrottleAutoResponse(h.datastore, uid, ev.Channel, ev.ThreadTimeStamp) {
+			slog.Info("AFK auto-response throttled",
+				slog.String("uid", uid),
+				slog.String("channel", ev.Channel),
+				slog.String("thread_ts", ev.ThreadTimeStamp))
+			continue
+		}
+
 		// Send auto-response
 		_, _, err = h.client.PostMessage(
 			ev.Channel,
@@ -157,6 +212,14 @@ func (h *EventHandler) HandleMessage(ev *slackevents.MessageEvent) error {
 				slog.String("thread_ts", ev.ThreadTimeStamp),
 				slog.Any("error", err))
 			continue
+		}
+
+		if err := markAutoResponseThrottled(h.datastore, uid, ev.Channel, ev.ThreadTimeStamp); err != nil {
+			slog.Error("Failed to record auto-response throttle",
+				slog.String("uid", uid),
+				slog.String("channel", ev.Channel),
+				slog.String("thread_ts", ev.ThreadTimeStamp),
+				slog.Any("error", err))
 		}
 	}
 

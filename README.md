@@ -71,6 +71,7 @@ DYNAMO_TABLE_PREFIX=slack_afk
 - `SLACK_DOMAIN` - Slack のドメイン（オプション、デフォルトは `slack.com`）
 - `AFK_START_MESSAGE` - 始業時のカスタムメッセージ
 - `AFK_FINISH_MESSAGE` - 退勤時のカスタムメッセージ
+- `AFK_MENTION_THROTTLE_INTERVAL` - 同じスレッドへの AFK 自動応答を抑制する間隔（Go の `time.ParseDuration` 形式。例: `30m`, `1h`、デフォルト: `30m`）
 
 環境変数は直接設定するか、`.env`ファイルを使用して設定できます：
 
@@ -167,6 +168,7 @@ SLACK_BOT_TOKEN=xoxb-xxx SLACK_APP_TOKEN=xapp-xxx REDIS_URL=redis://localhost:63
 ```go
 type Datastore interface {
     Set(key string, value string) error
+    SetEX(key string, value string, duration time.Duration) error
     Get(key string) (string, error)
     Delete(key string) error
     Expire(key string, duration time.Duration) error

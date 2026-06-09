@@ -9,6 +9,9 @@ type Datastore interface {
 	// Set は単一のキー・バリューを設定する
 	Set(key string, value string) error
 
+	// SetEX は有効期限付きで単一のキー・バリューを設定する
+	SetEX(key string, value string, duration time.Duration) error
+
 	// Get は指定されたキーの値を取得する
 	Get(key string) (string, error)
 

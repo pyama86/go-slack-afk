@@ -92,6 +92,30 @@ func TestRedisClient(t *testing.T) {
 		}
 	})
 
+	t.Run("SetEX", func(t *testing.T) {
+		key := "test-redis-setex-key"
+		value := "test-value"
+
+		err := client.SetEX(key, value, 1*time.Second)
+		if err != nil {
+			t.Fatalf("Failed to set value with TTL: %v", err)
+		}
+
+		result, err := client.Get(key)
+		if err != nil {
+			t.Fatalf("Failed to get value before expiration: %v", err)
+		}
+		if result != value {
+			t.Errorf("Expected %s, got %s", value, result)
+		}
+
+		time.Sleep(2 * time.Second)
+		_, err = client.Get(key)
+		if err == nil {
+			t.Error("Expected error when getting expired key, got nil")
+		}
+	})
+
 	t.Run("AddToList and GetListRange", func(t *testing.T) {
 		listKey := "test-redis-list"
 

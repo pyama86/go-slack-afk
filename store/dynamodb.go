@@ -262,6 +262,27 @@ func (d *DynamoDBClient) Set(key string, value string) error {
 	return err
 }
 
+// SetEX は有効期限付きでキー・バリューを設定する
+func (d *DynamoDBClient) SetEX(key string, value string, duration time.Duration) error {
+	ttl := time.Now().Add(duration).Unix()
+	item := map[string]types.AttributeValue{
+		"key":   &types.AttributeValueMemberS{Value: key},
+		"value": &types.AttributeValueMemberS{Value: value},
+		"ttl":   &types.AttributeValueMemberN{Value: strconv.FormatInt(ttl, 10)},
+	}
+
+	input := &dynamodb.PutItemInput{
+		TableName: aws.String(d.kvTableName),
+		Item:      item,
+	}
+
+	_, err := d.db.PutItem(context.TODO(), input)
+	if err != nil {
+		slog.Error("DynamoDB SetEX operation failed", slog.String("key", key), slog.Duration("duration", duration), slog.String("table", d.kvTableName), slog.Any("error", err))
+	}
+	return err
+}
+
 // Get は指定されたキーの値を取得する
 func (d *DynamoDBClient) Get(key string) (string, error) {
 	input := &dynamodb.GetItemInput{
