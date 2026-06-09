@@ -46,6 +46,14 @@ func (r *RedisClient) Set(key string, value string) error {
 	return err
 }
 
+func (r *RedisClient) SetEX(key string, value string, duration time.Duration) error {
+	err := r.client.Set(ctx, key, value, duration).Err()
+	if err != nil {
+		slog.Error("Redis SetEX operation failed", slog.String("key", key), slog.Duration("duration", duration), slog.Any("error", err))
+	}
+	return err
+}
+
 func (r *RedisClient) Get(key string) (string, error) {
 	result, err := r.client.Get(ctx, key).Result()
 	if err != nil && err != redis.Nil {
